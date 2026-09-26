@@ -23,5 +23,11 @@ pipeline {
                 '''
             }
         }
+
+        stage('Docker Build') {
+            steps {
+                sh 'docker build -f docker/Dockerfile -t devops-app:1.0 .'
+            }
+        }
     }
 }
