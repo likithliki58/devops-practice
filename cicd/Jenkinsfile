@@ -1,0 +1,27 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git(
+                    url: 'git@github.com:Likithsadhana/devops-practice.git',
+                    credentialsId: 'github-ssh',
+                    branch: 'main'
+                )
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    python3 -m venv .jenkins-venv
+                    . .jenkins-venv/bin/activate
+                    pip install -r app/requirements.txt
+                    pytest
+                '''
+            }
+        }
+    }
+}
