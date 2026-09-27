@@ -11,3 +11,4 @@ This repository contains my hands-on DevOps practice and projects.
 - Prometheus
 - Grafana
 - Monitoring
+- Jenkins CI/CD pipeline implemented
