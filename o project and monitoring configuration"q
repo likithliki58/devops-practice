@@ -1,0 +1,1268 @@
+[1mdiff --git a/app/app.py b/app/app.py[m
+[1mindex 76a9b40..5388517 100644[m
+[1m--- a/app/app.py[m
+[1m+++ b/app/app.py[m
+[36m@@ -1,17 +1,40 @@[m
+[32m+[m[32mimport logging[m
+[32m+[m
+ from flask import Flask[m
+[32m+[m[32mfrom prometheus_flask_exporter import PrometheusMetrics[m
+ [m
+ app = Flask(__name__)[m
+ [m
+[32m+[m[32mmetrics = PrometheusMetrics(app)[m
+[32m+[m
+[32m+[m[32mlogging.basicConfig([m
+[32m+[m[32m    level=logging.INFO,[m
+[32m+[m[32m    format="%(asctime)s %(levelname)s %(name)s %(message)s"[m
+[32m+[m[32m)[m
+[32m+[m
+[32m+[m[32mlogger = logging.getLogger(__name__)[m
+[32m+[m
+ [m
+ @app.route("/")[m
+ def home():[m
+[32m+[m[32m    logger.info("Home endpoint accessed")[m
+     return "Hello from DevOps!"[m
+ [m
+ [m
+ @app.route("/health")[m
+ def health():[m
+[32m+[m[32m    logger.info("Health check accessed")[m
+     return "OK"[m
+ [m
+ [m
+ if __name__ == "__main__":[m
+     app.run(host="0.0.0.0", port=5000)[m
+[32m+[m
+[32m+[m[32mlogging.basicConfig([m
+[32m+[m[32m    level=logging.INFO,[m
+[32m+[m[32m    format="%(asctime)s %(levelname)s %(name)s %(message)s",[m
+[32m+[m[32m    handlers=[[m
+[32m+[m[32m        logging.FileHandler("/root/devops-practice/monitoring/logs/app.log"),[m
+[32m+[m[32m        logging.StreamHandler()[m
+[32m+[m[32m    ][m
+[32m+[m[32m)[m
+[1mdiff --git a/app/monitoring/loki/loki-config.yml b/app/monitoring/loki/loki-config.yml[m
+[1mnew file mode 100644[m
+[1mindex 0000000..29f307f[m
+[1m--- /dev/null[m
+[1m+++ b/app/monitoring/loki/loki-config.yml[m
+[36m@@ -0,0 +1,30 @@[m
+[32m+[m[32mauth_enabled: false[m
+[32m+[m
+[32m+[m[32mserver:[m
+[32m+[m[32m  http_listen_port: 3100[m
+[32m+[m
+[32m+[m[32mcommon:[m
+[32m+[m[32m  path_prefix: /loki[m
+[32m+[m[32m  replication_factor: 1[m
+[32m+[m
+[32m+[m[32m  ring:[m
+[32m+[m[32m    kvstore:[m
+[32m+[m[32m      store: inmemory[m
+[32m+[m
+[32m+[m[32mschema_config:[m
+[32m+[m[32m  configs:[m
+[32m+[m[32m    - from: 2024-01-01[m
+[32m+[m[32m      store: tsdb[m
+[32m+[m[32m      object_store: filesystem[m
+[32m+[m[32m      schema: v13[m
+[32m+[m[32m      index:[m
+[32m+[m[32m        prefix: index_[m
+[32m+[m[32m        period: 24h[m
+[32m+[m
+[32m+[m[32mstorage_config:[m
+[32m+[m[32m  filesystem:[m
+[32m+[m[32m    directory: /loki/chunks[m
+[32m+[m
+[32m+[m[32mlimits_config:[m
+[32m+[m[32m  allow_structured_metadata: true[m
+[32m+[m[32m  volume_enabled: true[m
+[1mdiff --git a/app/requirements.txt b/app/requirements.txt[m
+[1mindex d32731f..3c734e4 100644[m
+[1m--- a/app/requirements.txt[m
+[1m+++ b/app/requirements.txt[m
+[36m@@ -1,3 +1,4 @@[m
+ Flask[m
+ pytest[m
+[32m+[m[32mprometheus-flask-exporter[m
+ [m
+[1mdiff --git a/kubernetes/pod.yaml b/kubernetes/pod.yaml[m
+[1mnew file mode 100644[m
+[1mindex 0000000..4139f4b[m
+[1m--- /dev/null[m
+[1m+++ b/kubernetes/pod.yaml[m
+[36m@@ -0,0 +1,12 @@[m
+[32m+[m[32mapiVersion: v1[m
+[32m+[m[32mkind: Pod[m
+[32m+[m
+[32m+[m[32mmetadata:[m
+[32m+[m[32m  name: devops-app-pod[m
+[32m+[m
+[32m+[m[32mspec:[m
+[32m+[m[32m  containers:[m
+[32m+[m[32m    - name: devops-app[m
+[32m+[m[32m      image: devops-app:1.0[m
+[32m+[m[32m      ports:[m
+[32m+[m[32m        - containerPort: 5000[m
+[1mdiff --git a/kubernetes/replicaset.yaml b/kubernetes/replicaset.yaml[m
+[1mnew file mode 100644[m
+[1mindex 0000000..fb5d02d[m
+[1m--- /dev/null[m
+[1m+++ b/kubernetes/replicaset.yaml[m
+[36m@@ -0,0 +1,24 @@[m
+[32m+[m[32mapiVersion: apps/v1[m
+[32m+[m[32mkind: ReplicaSet[m
+[32m+[m
+[32m+[m[32mmetadata:[m
+[32m+[m[32m  name: devops-app-rs[m
+[32m+[m
+[32m+[m[32mspec:[m
+[32m+[m[32m  replicas: 3[m
+[32m+[m
+[32m+[m[32m  selector:[m
+[32m+[m[32m    matchLabels:[m
+[32m+[m[32m      app: devops-app[m
+[32m+[m
+[32m+[m[32m  template:[m
+[32m+[m[32m    metadata:[m
+[32m+[m[32m      labels:[m
+[32m+[m[32m        app: devops-app[m
+[32m+[m
+[32m+[m[32m    spec:[m
+[32m+[m[32m      containers:[m
+[32m+[m[32m        - name: devops-app[m
+[32m+[m[32m          image: devops-app:1.0[m
+[32m+[m[32m          ports:[m
+[32m+[m[32m            - containerPort: 5000[m
+[1mdiff --git a/monitoring/logs/app.log b/monitoring/logs/app.log[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e69de29[m
+[1mdiff --git a/monitoring/loki/loki-config.yml b/monitoring/loki/loki-config.yml[m
+[1mnew file mode 100644[m
+[1mindex 0000000..29f307f[m
+[1m--- /dev/null[m
+[1m+++ b/monitoring/loki/loki-config.yml[m
+[36m@@ -0,0 +1,30 @@[m
+[32m+[m[32mauth_enabled: false[m
+[32m+[m
+[32m+[m[32mserver:[m
+[32m+[m[32m  http_listen_port: 3100[m
+[32m+[m
+[32m+[m[32mcommon:[m
+[32m+[m[32m  path_prefix: /loki[m
+[32m+[m[32m  replication_factor: 1[m
+[32m+[m
+[32m+[m[32m  ring:[m
+[32m+[m[32m    kvstore:[m
+[32m+[m[32m      store: inmemory[m
+[32m+[m
+[32m+[m[32mschema_config:[m
+[32m+[m[32m  configs:[m
+[32m+[m[32m    - from: 2024-01-01[m
+[32m+[m[32m      store: tsdb[m
+[32m+[m[32m      object_store: filesystem[m
+[32m+[m[32m      schema: v13[m
+[32m+[m[32m      index:[m
+[32m+[m[32m        prefix: index_[m
+[32m+[m[32m        period: 24h[m
+[32m+[m
+[32m+[m[32mstorage_config:[m
+[32m+[m[32m  filesystem:[m
+[32m+[m[32m    directory: /loki/chunks[m
+[32m+[m
+[32m+[m[32mlimits_config:[m
+[32m+[m[32m  allow_structured_metadata: true[m
+[32m+[m[32m  volume_enabled: true[m
+[1mdiff --git a/terraform/.terraform.lock.hcl b/terraform/.terraform.lock.hcl[m
+[1mnew file mode 100644[m
+[1mindex 0000000..85a5821[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/.terraform.lock.hcl[m
+[36m@@ -0,0 +1,26 @@[m
+[32m+[m[32m# This file is maintained automatically by "terraform init".[m
+[32m+[m[32m# Manual edits may be lost in future updates.[m
+[32m+[m
+[32m+[m[32mprovider "registry.terraform.io/hashicorp/aws" {[m
+[32m+[m[32m  version     = "6.66.0"[m
+[32m+[m[32m  constraints = "~> 6.0"[m
+[32m+[m[32m  hashes = [[m
+[32m+[m[32m    "h1:hBEaeBm9nm7A/u1nnD0nfolTPP55/BoKRFWk8zG8/fk=",[m
+[32m+[m[32m    "zh:156fe7164a3d26ef6b35734c43e99fb198df90575ed897d1182b8e930b8cd523",[m
+[32m+[m[32m    "zh:1af52b22b35be00f8d16e3ebebff9fa699ec4db2ef69e6032ba5c536f80c03d9",[m
+[32m+[m[32m    "zh:2545a8478bd551fdc9694f6cc1a1ad24617f6736f8bde0ad6cae90987c65380f",[m
+[32m+[m[32m    "zh:4070db1ee369ccb41cb610bfd887386bc0a9b9ecad60aeb4dbce58443d2519dd",[m
+[32m+[m[32m    "zh:53da7d3c1840ef875c7d34e967732502a64fe677af0e78824773d4c15a8fe740",[m
+[32m+[m[32m    "zh:576a93a28bf611a4de2a2e6ced697a41d5126b8fd31d30782b16797e410a9706",[m
+[32m+[m[32m    "zh:58fed5fa9a033355b9d4f3092c817b70d934100e0d8678d6e4c93f3c9493d4e4",[m
+[32m+[m[32m    "zh:6a9ca2f24e2ee9156dd785d159a850b35d190e9cf7eca21cb9582970c2db80cd",[m
+[32m+[m[32m    "zh:729edd30f99cc16009deba5c013265b0c81eda261a3d0821cbd011d3287fd230",[m
+[32m+[m[32m    "zh:7ae460049b75bd4aefee465ef7c53a01ac2df46d4d3e3ac00824afa8b5cb83fb",[m
+[32m+[m[32m    "zh:9051fa85c8034ade8a57a5c6f232fd33da28f3800bb5aa40bc8625dbc5e27632",[m
+[32m+[m[32m    "zh:906547e4319805e7acf7fbdf2bac28a4b1a7370790a2a430c7adb1b29bb934eb",[m
+[32m+[m[32m    "zh:998f27410a66158a35ee5ed142c27e5b21fe8601941da55da2157f8042d6dcca",[m
+[32m+[m[32m    "zh:9b12af85486a96aedd8d7984b0ff811a4b42e3d88dad1a3fb4c0b580d04fa425",[m
+[32m+[m[32m    "zh:9c1804eff1dda0446dc2d215231015bb65a2fc6c3b7ba24584fe45f1ddd3fa9f",[m
+[32m+[m[32m    "zh:b03ff5efdee310502aaaeb460144dc059bce72a0d8217e6b989099ef8aef9283",[m
+[32m+[m[32m  ][m
+[32m+[m[32m}[m
+[1mdiff --git a/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/LICENSE.txt b/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/LICENSE.txt[m
+[1mnew file mode 100644[m
+[1mindex 0000000..e844cd4[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/LICENSE.txt[m
+[36m@@ -0,0 +1,375 @@[m
+[32m+[m[32mCopyright IBM Corp. 2014, 2026[m
+[32m+[m
+[32m+[m[32mMozilla Public License Version 2.0[m
+[32m+[m[32m==================================[m
+[32m+[m
+[32m+[m[32m1. Definitions[m
+[32m+[m[32m--------------[m
+[32m+[m
+[32m+[m[32m1.1. "Contributor"[m
+[32m+[m[32m    means each individual or legal entity that creates, contributes to[m
+[32m+[m[32m    the creation of, or owns Covered Software.[m
+[32m+[m
+[32m+[m[32m1.2. "Contributor Version"[m
+[32m+[m[32m    means the combination of the Contributions of others (if any) used[m
+[32m+[m[32m    by a Contributor and that particular Contributor's Contribution.[m
+[32m+[m
+[32m+[m[32m1.3. "Contribution"[m
+[32m+[m[32m    means Covered Software of a particular Contributor.[m
+[32m+[m
+[32m+[m[32m1.4. "Covered Software"[m
+[32m+[m[32m    means Source Code Form to which the initial Contributor has attached[m
+[32m+[m[32m    the notice in Exhibit A, the Executable Form of such Source Code[m
+[32m+[m[32m    Form, and Modifications of such Source Code Form, in each case[m
+[32m+[m[32m    including portions thereof.[m
+[32m+[m
+[32m+[m[32m1.5. "Incompatible With Secondary Licenses"[m
+[32m+[m[32m    means[m
+[32m+[m
+[32m+[m[32m    (a) that the initial Contributor has attached the notice described[m
+[32m+[m[32m        in Exhibit B to the Covered Software; or[m
+[32m+[m
+[32m+[m[32m    (b) that the Covered Software was made available under the terms of[m
+[32m+[m[32m        version 1.1 or earlier of the License, but not also under the[m
+[32m+[m[32m        terms of a Secondary License.[m
+[32m+[m
+[32m+[m[32m1.6. "Executable Form"[m
+[32m+[m[32m    means any form of the work other than Source Code Form.[m
+[32m+[m
+[32m+[m[32m1.7. "Larger Work"[m
+[32m+[m[32m    means a work that combines Covered Software with other material, in[m
+[32m+[m[32m    a separate file or files, that is not Covered Software.[m
+[32m+[m
+[32m+[m[32m1.8. "License"[m
+[32m+[m[32m    means this document.[m
+[32m+[m
+[32m+[m[32m1.9. "Licensable"[m
+[32m+[m[32m    means having the right to grant, to the maximum extent possible,[m
+[32m+[m[32m    whether at the time of the initial grant or subsequently, any and[m
+[32m+[m[32m    all of the rights conveyed by this License.[m
+[32m+[m
+[32m+[m[32m1.10. "Modifications"[m
+[32m+[m[32m    means any of the following:[m
+[32m+[m
+[32m+[m[32m    (a) any file in Source Code Form that results from an addition to,[m
+[32m+[m[32m        deletion from, or modification of the contents of Covered[m
+[32m+[m[32m        Software; or[m
+[32m+[m
+[32m+[m[32m    (b) any new file in Source Code Form that contains any Covered[m
+[32m+[m[32m        Software.[m
+[32m+[m
+[32m+[m[32m1.11. "Patent Claims" of a Contributor[m
+[32m+[m[32m    means any patent claim(s), including without limitation, method,[m
+[32m+[m[32m    process, and apparatus claims, in any patent Licensable by such[m
+[32m+[m[32m    Contributor that would be infringed, but for the grant of the[m
+[32m+[m[32m    License, by the making, using, selling, offering for sale, having[m
+[32m+[m[32m    made, import, or transfer of either its Contributions or its[m
+[32m+[m[32m    Contributor Version.[m
+[32m+[m
+[32m+[m[32m1.12. "Secondary License"[m
+[32m+[m[32m    means either the GNU General Public License, Version 2.0, the GNU[m
+[32m+[m[32m    Lesser General Public License, Version 2.1, the GNU Affero General[m
+[32m+[m[32m    Public License, Version 3.0, or any later versions of those[m
+[32m+[m[32m    licenses.[m
+[32m+[m
+[32m+[m[32m1.13. "Source Code Form"[m
+[32m+[m[32m    means the form of the work preferred for making modifications.[m
+[32m+[m
+[32m+[m[32m1.14. "You" (or "Your")[m
+[32m+[m[32m    means an individual or a legal entity exercising rights under this[m
+[32m+[m[32m    License. For legal entities, "You" includes any entity that[m
+[32m+[m[32m    controls, is controlled by, or is under common control with You. For[m
+[32m+[m[32m    purposes of this definition, "control" means (a) the power, direct[m
+[32m+[m[32m    or indirect, to cause the direction or management of such entity,[m
+[32m+[m[32m    whether by contract or otherwise, or (b) ownership of more than[m
+[32m+[m[32m    fifty percent (50%) of the outstanding shares or beneficial[m
+[32m+[m[32m    ownership of such entity.[m
+[32m+[m
+[32m+[m[32m2. License Grants and Conditions[m
+[32m+[m[32m--------------------------------[m
+[32m+[m
+[32m+[m[32m2.1. Grants[m
+[32m+[m
+[32m+[m[32mEach Contributor hereby grants You a world-wide, royalty-free,[m
+[32m+[m[32mnon-exclusive license:[m
+[32m+[m
+[32m+[m[32m(a) under intellectual property rights (other than patent or trademark)[m
+[32m+[m[32m    Licensable by such Contributor to use, reproduce, make available,[m
+[32m+[m[32m    modify, display, perform, distribute, and otherwise exploit its[m
+[32m+[m[32m    Contributions, either on an unmodified basis, with Modifications, or[m
+[32m+[m[32m    as part of a Larger Work; and[m
+[32m+[m
+[32m+[m[32m(b) under Patent Claims of such Contributor to make, use, sell, offer[m
+[32m+[m[32m    for sale, have made, import, and otherwise transfer either its[m
+[32m+[m[32m    Contributions or its Contributor Version.[m
+[32m+[m
+[32m+[m[32m2.2. Effective Date[m
+[32m+[m
+[32m+[m[32mThe licenses granted in Section 2.1 with respect to any Contribution[m
+[32m+[m[32mbecome effective for each Contribution on the date the Contributor first[m
+[32m+[m[32mdistributes such Contribution.[m
+[32m+[m
+[32m+[m[32m2.3. Limitations on Grant Scope[m
+[32m+[m
+[32m+[m[32mThe licenses granted in this Section 2 are the only rights granted under[m
+[32m+[m[32mthis License. No additional rights or licenses will be implied from the[m
+[32m+[m[32mdistribution or licensing of Covered Software under this License.[m
+[32m+[m[32mNotwithstanding Section 2.1(b) above, no patent license is granted by a[m
+[32m+[m[32mContributor:[m
+[32m+[m
+[32m+[m[32m(a) for any code that a Contributor has removed from Covered Software;[m
+[32m+[m[32m    or[m
+[32m+[m
+[32m+[m[32m(b) for infringements caused by: (i) Your and any other third party's[m
+[32m+[m[32m    modifications of Covered Software, or (ii) the combination of its[m
+[32m+[m[32m    Contributions with other software (except as part of its Contributor[m
+[32m+[m[32m    Version); or[m
+[32m+[m
+[32m+[m[32m(c) under Patent Claims infringed by Covered Software in the absence of[m
+[32m+[m[32m    its Contributions.[m
+[32m+[m
+[32m+[m[32mThis License does not grant any rights in the trademarks, service marks,[m
+[32m+[m[32mor logos of any Contributor (except as may be necessary to comply with[m
+[32m+[m[32mthe notice requirements in Section 3.4).[m
+[32m+[m
+[32m+[m[32m2.4. Subsequent Licenses[m
+[32m+[m
+[32m+[m[32mNo Contributor makes additional grants as a result of Your choice to[m
+[32m+[m[32mdistribute the Covered Software under a subsequent version of this[m
+[32m+[m[32mLicense (see Section 10.2) or under the terms of a Secondary License (if[m
+[32m+[m[32mpermitted under the terms of Section 3.3).[m
+[32m+[m
+[32m+[m[32m2.5. Representation[m
+[32m+[m
+[32m+[m[32mEach Contributor represents that the Contributor believes its[m
+[32m+[m[32mContributions are its original creation(s) or it has sufficient rights[m
+[32m+[m[32mto grant the rights to its Contributions conveyed by this License.[m
+[32m+[m
+[32m+[m[32m2.6. Fair Use[m
+[32m+[m
+[32m+[m[32mThis License is not intended to limit any rights You have under[m
+[32m+[m[32mapplicable copyright doctrines of fair use, fair dealing, or other[m
+[32m+[m[32mequivalents.[m
+[32m+[m
+[32m+[m[32m2.7. Conditions[m
+[32m+[m
+[32m+[m[32mSections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted[m
+[32m+[m[32min Section 2.1.[m
+[32m+[m
+[32m+[m[32m3. Responsibilities[m
+[32m+[m[32m-------------------[m
+[32m+[m
+[32m+[m[32m3.1. Distribution of Source Form[m
+[32m+[m
+[32m+[m[32mAll distribution of Covered Software in Source Code Form, including any[m
+[32m+[m[32mModifications that You create or to which You contribute, must be under[m
+[32m+[m[32mthe terms of this License. You must inform recipients that the Source[m
+[32m+[m[32mCode Form of the Covered Software is governed by the terms of this[m
+[32m+[m[32mLicense, and how they can obtain a copy of this License. You may not[m
+[32m+[m[32mattempt to alter or restrict the recipients' rights in the Source Code[m
+[32m+[m[32mForm.[m
+[32m+[m
+[32m+[m[32m3.2. Distribution of Executable Form[m
+[32m+[m
+[32m+[m[32mIf You distribute Covered Software in Executable Form then:[m
+[32m+[m
+[32m+[m[32m(a) such Covered Software must also be made available in Source Code[m
+[32m+[m[32m    Form, as described in Section 3.1, and You must inform recipients of[m
+[32m+[m[32m    the Executable Form how they can obtain a copy of such Source Code[m
+[32m+[m[32m    Form by reasonable means in a timely manner, at a charge no more[m
+[32m+[m[32m    than the cost of distribution to the recipient; and[m
+[32m+[m
+[32m+[m[32m(b) You may distribute such Executable Form under the terms of this[m
+[32m+[m[32m    License, or sublicense it under different terms, provided that the[m
+[32m+[m[32m    license for the Executable Form does not attempt to limit or alter[m
+[32m+[m[32m    the recipients' rights in the Source Code Form under this License.[m
+[32m+[m
+[32m+[m[32m3.3. Distribution of a Larger Work[m
+[32m+[m
+[32m+[m[32mYou may create and distribute a Larger Work under terms of Your choice,[m
+[32m+[m[32mprovided that You also comply with the requirements of this License for[m
+[32m+[m[32mthe Covered Software. If the Larger Work is a combination of Covered[m
+[32m+[m[32mSoftware with a work governed by one or more Secondary Licenses, and the[m
+[32m+[m[32mCovered Software is not Incompatible With Secondary Licenses, this[m
+[32m+[m[32mLicense permits You to additionally distribute such Covered Software[m
+[32m+[m[32munder the terms of such Secondary License(s), so that the recipient of[m
+[32m+[m[32mthe Larger Work may, at their option, further distribute the Covered[m
+[32m+[m[32mSoftware under the terms of either this License or such Secondary[m
+[32m+[m[32mLicense(s).[m
+[32m+[m
+[32m+[m[32m3.4. Notices[m
+[32m+[m
+[32m+[m[32mYou may not remove or alter the substance of any license notices[m
+[32m+[m[32m(including copyright notices, patent notices, disclaimers of warranty,[m
+[32m+[m[32mor limitations of liability) contained within the Source Code Form of[m
+[32m+[m[32mthe Covered Software, except that You may alter any license notices to[m
+[32m+[m[32mthe extent required to remedy known factual inaccuracies.[m
+[32m+[m
+[32m+[m[32m3.5. Application of Additional Terms[m
+[32m+[m
+[32m+[m[32mYou may choose to offer, and to charge a fee for, warranty, support,[m
+[32m+[m[32mindemnity or liability obligations to one or more recipients of Covered[m
+[32m+[m[32mSoftware. However, You may do so only on Your own behalf, and not on[m
+[32m+[m[32mbehalf of any Contributor. You must make it absolutely clear that any[m
+[32m+[m[32msuch warranty, support, indemnity, or liability obligation is offered by[m
+[32m+[m[32mYou alone, and You hereby agree to indemnify every Contributor for any[m
+[32m+[m[32mliability incurred by such Contributor as a result of warranty, support,[m
+[32m+[m[32mindemnity or liability terms You offer. You may include additional[m
+[32m+[m[32mdisclaimers of warranty and limitations of liability specific to any[m
+[32m+[m[32mjurisdiction.[m
+[32m+[m
+[32m+[m[32m4. Inability to Comply Due to Statute or Regulation[m
+[32m+[m[32m---------------------------------------------------[m
+[32m+[m
+[32m+[m[32mIf it is impossible for You to comply with any of the terms of this[m
+[32m+[m[32mLicense with respect to some or all of the Covered Software due to[m
+[32m+[m[32mstatute, judicial order, or regulation then You must: (a) comply with[m
+[32m+[m[32mthe terms of this License to the maximum extent possible; and (b)[m
+[32m+[m[32mdescribe the limitations and the code they affect. Such description must[m
+[32m+[m[32mbe placed in a text file included with all distributions of the Covered[m
+[32m+[m[32mSoftware under this License. Except to the extent prohibited by statute[m
+[32m+[m[32mor regulation, such description must be sufficiently detailed for a[m
+[32m+[m[32mrecipient of ordinary skill to be able to understand it.[m
+[32m+[m
+[32m+[m[32m5. Termination[m
+[32m+[m[32m--------------[m
+[32m+[m
+[32m+[m[32m5.1. The rights granted under this License will terminate automatically[m
+[32m+[m[32mif You fail to comply with any of its terms. However, if You become[m
+[32m+[m[32mcompliant, then the rights granted under this License from a particular[m
+[32m+[m[32mContributor are reinstated (a) provisionally, unless and until such[m
+[32m+[m[32mContributor explicitly and finally terminates Your grants, and (b) on an[m
+[32m+[m[32mongoing basis, if such Contributor fails to notify You of the[m
+[32m+[m[32mnon-compliance by some reasonable means prior to 60 days after You have[m
+[32m+[m[32mcome back into compliance. Moreover, Your grants from a particular[m
+[32m+[m[32mContributor are reinstated on an ongoing basis if such Contributor[m
+[32m+[m[32mnotifies You of the non-compliance by some reasonable means, this is the[m
+[32m+[m[32mfirst time You have received notice of non-compliance with this License[m
+[32m+[m[32mfrom such Contributor, and You become compliant prior to 30 days after[m
+[32m+[m[32mYour receipt of the notice.[m
+[32m+[m
+[32m+[m[32m5.2. If You initiate litigation against any entity by asserting a patent[m
+[32m+[m[32minfringement claim (excluding declaratory judgment actions,[m
+[32m+[m[32mcounter-claims, and cross-claims) alleging that a Contributor Version[m
+[32m+[m[32mdirectly or indirectly infringes any patent, then the rights granted to[m
+[32m+[m[32mYou by any and all Contributors for the Covered Software under Section[m
+[32m+[m[32m2.1 of this License shall terminate.[m
+[32m+[m
+[32m+[m[32m5.3. In the event of termination under Sections 5.1 or 5.2 above, all[m
+[32m+[m[32mend user license agreements (excluding distributors and resellers) which[m
+[32m+[m[32mhave been validly granted by You or Your distributors under this License[m
+[32m+[m[32mprior to termination shall survive termination.[m
+[32m+[m
+[32m+[m[32m************************************************************************[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m*  6. Disclaimer of Warranty                                           *[m
+[32m+[m[32m*  -------------------------                                           *[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m*  Covered Software is provided under this License on an "as is"       *[m
+[32m+[m[32m*  basis, without warranty of any kind, either expressed, implied, or  *[m
+[32m+[m[32m*  statutory, including, without limitation, warranties that the       *[m
+[32m+[m[32m*  Covered Software is free of defects, merchantable, fit for a        *[m
+[32m+[m[32m*  particular purpose or non-infringing. The entire risk as to the     *[m
+[32m+[m[32m*  quality and performance of the Covered Software is with You.        *[m
+[32m+[m[32m*  Should any Covered Software prove defective in any respect, You     *[m
+[32m+[m[32m*  (not any Contributor) assume the cost of any necessary servicing,   *[m
+[32m+[m[32m*  repair, or correction. This disclaimer of warranty constitutes an   *[m
+[32m+[m[32m*  essential part of this License. No use of any Covered Software is   *[m
+[32m+[m[32m*  authorized under this License except under this disclaimer.         *[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m************************************************************************[m
+[32m+[m
+[32m+[m[32m************************************************************************[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m*  7. Limitation of Liability                                          *[m
+[32m+[m[32m*  --------------------------                                          *[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m*  Under no circumstances and under no legal theory, whether tort      *[m
+[32m+[m[32m*  (including negligence), contract, or otherwise, shall any           *[m
+[32m+[m[32m*  Contributor, or anyone who distributes Covered Software as          *[m
+[32m+[m[32m*  permitted above, be liable to You for any direct, indirect,         *[m
+[32m+[m[32m*  special, incidental, or consequential damages of any character      *[m
+[32m+[m[32m*  including, without limitation, damages for lost profits, loss of    *[m
+[32m+[m[32m*  goodwill, work stoppage, computer failure or malfunction, or any    *[m
+[32m+[m[32m*  and all other commercial damages or losses, even if such party      *[m
+[32m+[m[32m*  shall have been informed of the possibility of such damages. This   *[m
+[32m+[m[32m*  limitation of liability shall not apply to liability for death or   *[m
+[32m+[m[32m*  personal injury resulting from such party's negligence to the       *[m
+[32m+[m[32m*  extent applicable law prohibits such limitation. Some               *[m
+[32m+[m[32m*  jurisdictions do not allow the exclusion or limitation of           *[m
+[32m+[m[32m*  incidental or consequential damages, so this exclusion and          *[m
+[32m+[m[32m*  limitation may not apply to You.                                    *[m
+[32m+[m[32m*                                                                      *[m
+[32m+[m[32m************************************************************************[m
+[32m+[m
+[32m+[m[32m8. Litigation[m
+[32m+[m[32m-------------[m
+[32m+[m
+[32m+[m[32mAny litigation relating to this License may be brought only in the[m
+[32m+[m[32mcourts of a jurisdiction where the defendant maintains its principal[m
+[32m+[m[32mplace of business and such litigation shall be governed by laws of that[m
+[32m+[m[32mjurisdiction, without reference to its conflict-of-law provisions.[m
+[32m+[m[32mNothing in this Section shall prevent a party's ability to bring[m
+[32m+[m[32mcross-claims or counter-claims.[m
+[32m+[m
+[32m+[m[32m9. Miscellaneous[m
+[32m+[m[32m----------------[m
+[32m+[m
+[32m+[m[32mThis License represents the complete agreement concerning the subject[m
+[32m+[m[32mmatter hereof. If any provision of this License is held to be[m
+[32m+[m[32munenforceable, such provision shall be reformed only to the extent[m
+[32m+[m[32mnecessary to make it enforceable. Any law or regulation which provides[m
+[32m+[m[32mthat the language of a contract shall be construed against the drafter[m
+[32m+[m[32mshall not be used to construe this License against a Contributor.[m
+[32m+[m
+[32m+[m[32m10. Versions of the License[m
+[32m+[m[32m---------------------------[m
+[32m+[m
+[32m+[m[32m10.1. New Versions[m
+[32m+[m
+[32m+[m[32mMozilla Foundation is the license steward. Except as provided in Section[m
+[32m+[m[32m10.3, no one other than the license steward has the right to modify or[m
+[32m+[m[32mpublish new versions of this License. Each version will be given a[m
+[32m+[m[32mdistinguishing version number.[m
+[32m+[m
+[32m+[m[32m10.2. Effect of New Versions[m
+[32m+[m
+[32m+[m[32mYou may distribute the Covered Software under the terms of the version[m
+[32m+[m[32mof the License under which You originally received the Covered Software,[m
+[32m+[m[32mor under the terms of any subsequent version published by the license[m
+[32m+[m[32msteward.[m
+[32m+[m
+[32m+[m[32m10.3. Modified Versions[m
+[32m+[m
+[32m+[m[32mIf you create software not governed by this License, and you want to[m
+[32m+[m[32mcreate a new license for such software, you may create and use a[m
+[32m+[m[32mmodified version of this License if you rename the license and remove[m
+[32m+[m[32many references to the name of the license steward (except to note that[m
+[32m+[m[32msuch modified license differs from this License).[m
+[32m+[m
+[32m+[m[32m10.4. Distributing Source Code Form that is Incompatible With Secondary[m
+[32m+[m[32mLicenses[m
+[32m+[m
+[32m+[m[32mIf You choose to distribute Source Code Form that is Incompatible With[m
+[32m+[m[32mSecondary Licenses under the terms of this version of the License, the[m
+[32m+[m[32mnotice described in Exhibit B of this License must be attached.[m
+[32m+[m
+[32m+[m[32mExhibit A - Source Code Form License Notice[m
+[32m+[m[32m-------------------------------------------[m
+[32m+[m
+[32m+[m[32m  This Source Code Form is subject to the terms of the Mozilla Public[m
+[32m+[m[32m  License, v. 2.0. If a copy of the MPL was not distributed with this[m
+[32m+[m[32m  file, You can obtain one at http://mozilla.org/MPL/2.0/.[m
+[32m+[m
+[32m+[m[32mIf it is not possible or desirable to put the notice in a particular[m
+[32m+[m[32mfile, then You may include the notice in a location (such as a LICENSE[m
+[32m+[m[32mfile in a relevant directory) where a recipient would be likely to look[m
+[32m+[m[32mfor such a notice.[m
+[32m+[m
+[32m+[m[32mYou may add additional accurate notices of copyright ownership.[m
+[32m+[m
+[32m+[m[32mExhibit B - "Incompatible With Secondary Licenses" Notice[m
+[32m+[m[32m---------------------------------------------------------[m
+[32m+[m
+[32m+[m[32m  This Source Code Form is "Incompatible With Secondary Licenses", as[m
+[32m+[m[32m  defined by the Mozilla Public License, v. 2.0.[m
+[1mdiff --git a/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/terraform-provider-aws_v6.66.0_x5 b/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/terraform-provider-aws_v6.66.0_x5[m
+[1mnew file mode 100755[m
+[1mindex 0000000..5b33083[m
+Binary files /dev/null and b/terraform/.terraform/providers/registry.terraform.io/hashicorp/aws/6.66.0/linux_amd64/terraform-provider-aws_v6.66.0_x5 differ
+[1mdiff --git a/terraform/main.tf b/terraform/main.tf[m
+[1mnew file mode 100644[m
+[1mindex 0000000..1c63868[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/main.tf[m
+[36m@@ -0,0 +1,98 @@[m
+[32m+[m[32mterraform {[m
+[32m+[m[32m  required_version = ">= 1.16.0"[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mresource "aws_vpc" "devops_vpc" {[m
+[32m+[m[32m  cidr_block = "10.0.0.0/16"[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-vpc"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_subnet" "public_subnet" {[m
+[32m+[m[32m  vpc_id                  = aws_vpc.devops_vpc.id[m
+[32m+[m[32m  cidr_block              = "10.0.1.0/24"[m
+[32m+[m[32m  availability_zone       = "us-east-1a"[m
+[32m+[m[32m  map_public_ip_on_launch = true[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-public-subnet"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_internet_gateway" "devops_igw" {[m
+[32m+[m[32m  vpc_id = aws_vpc.devops_vpc.id[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-igw"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_route_table" "public_rt" {[m
+[32m+[m[32m  vpc_id = aws_vpc.devops_vpc.id[m
+[32m+[m
+[32m+[m[32m  route {[m
+[32m+[m[32m    cidr_block = "0.0.0.0/0"[m
+[32m+[m[32m    gateway_id = aws_internet_gateway.devops_igw.id[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-public-rt"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_route_table_association" "public_subnet_association" {[m
+[32m+[m[32m  subnet_id      = aws_subnet.public_subnet.id[m
+[32m+[m[32m  route_table_id = aws_route_table.public_rt.id[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_security_group" "app_sg" {[m
+[32m+[m[32m  name        = "devops-practice-app-sg"[m
+[32m+[m[32m  description = "Security group for DevOps practice application"[m
+[32m+[m[32m  vpc_id      = aws_vpc.devops_vpc.id[m
+[32m+[m
+[32m+[m[32m  ingress {[m
+[32m+[m[32m    description = "SSH"[m
+[32m+[m[32m    from_port   = 22[m
+[32m+[m[32m    to_port     = 22[m
+[32m+[m[32m    protocol    = "tcp"[m
+[32m+[m[32m    cidr_blocks = ["0.0.0.0/0"][m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  ingress {[m
+[32m+[m[32m    description = "HTTP"[m
+[32m+[m[32m    from_port   = 80[m
+[32m+[m[32m    to_port     = 80[m
+[32m+[m[32m    protocol    = "tcp"[m
+[32m+[m[32m    cidr_blocks = ["0.0.0.0/0"][m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  egress {[m
+[32m+[m[32m    from_port   = 0[m
+[32m+[m[32m    to_port     = 0[m
+[32m+[m[32m    protocol    = "-1"[m
+[32m+[m[32m    cidr_blocks = ["0.0.0.0/0"][m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-app-sg"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_instance" "app_server" {[m
+[32m+[m[32m  ami           = "ami-0045d7fc2ad003464"[m
+[32m+[m[32m  instance_type = "t3.micro"[m
+[32m+[m
+[32m+[m[32m  subnet_id                   = aws_subnet.public_subnet.id[m
+[32m+[m[32m  vpc_security_group_ids      = [aws_security_group.app_sg.id][m
+[32m+[m[32m  associate_public_ip_address = true[m
+[32m+[m[32m  key_name                    = "devops-learning-key"[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-app-server"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m[32mresource "aws_subnet" "private_subnet" {[m
+[32m+[m[32m  vpc_id            = aws_vpc.devops_vpc.id[m
+[32m+[m[32m  cidr_block        = "10.0.2.0/24"[m
+[32m+[m[32m  availability_zone = "us-east-1a"[m
+[32m+[m
+[32m+[m[32m  tags = {[m
+[32m+[m[32m    Name = "devops-practice-private-subnet"[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[1mdiff --git a/terraform/provider.tf b/terraform/provider.tf[m
+[1mnew file mode 100644[m
+[1mindex 0000000..913c6c7[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/provider.tf[m
+[36m@@ -0,0 +1,12 @@[m
+[32m+[m[32mterraform {[m
+[32m+[m[32m  required_providers {[m
+[32m+[m[32m    aws = {[m
+[32m+[m[32m      source  = "hashicorp/aws"[m
+[32m+[m[32m      version = "~> 6.0"[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mprovider "aws" {[m
+[32m+[m[32m  region = "us-east-1"[m
+[32m+[m[32m}[m
+[1mdiff --git a/terraform/terraform.tfstate b/terraform/terraform.tfstate[m
+[1mnew file mode 100644[m
+[1mindex 0000000..412a3f6[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/terraform.tfstate[m
+[36m@@ -0,0 +1,9 @@[m
+[32m+[m[32m{[m
+[32m+[m[32m  "version": 4,[m
+[32m+[m[32m  "terraform_version": "1.16.0",[m
+[32m+[m[32m  "serial": 23,[m
+[32m+[m[32m  "lineage": "23483483-92b9-c7e1-bfd3-8629ae214c62",[m
+[32m+[m[32m  "outputs": {},[m
+[32m+[m[32m  "resources": [],[m
+[32m+[m[32m  "check_results": null[m
+[32m+[m[32m}[m
+[1mdiff --git a/terraform/terraform.tfstate.backup b/terraform/terraform.tfstate.backup[m
+[1mnew file mode 100644[m
+[1mindex 0000000..575a7bb[m
+[1m--- /dev/null[m
+[1m+++ b/terraform/terraform.tfstate.backup[m
+[36m@@ -0,0 +1,531 @@[m
+[32m+[m[32m{[m
+[32m+[m[32m  "version": 4,[m
+[32m+[m[32m  "terraform_version": "1.16.0",[m
+[32m+[m[32m  "serial": 14,[m
+[32m+[m[32m  "lineage": "23483483-92b9-c7e1-bfd3-8629ae214c62",[m
+[32m+[m[32m  "outputs": {},[m
+[32m+[m[32m  "resources": [[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_instance",[m
+[32m+[m[32m      "name": "app_server",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 2,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "ami": "ami-0045d7fc2ad003464",[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:instance/i-00b42b55d9742d3f2",[m
+[32m+[m[32m            "associate_public_ip_address": true,[m
+[32m+[m[32m            "availability_zone": "us-east-1a",[m
+[32m+[m[32m            "capacity_reservation_specification": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "capacity_reservation_preference": "open",[m
+[32m+[m[32m                "capacity_reservation_target": [][m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "cpu_options": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "amd_sev_snp": "",[m
+[32m+[m[32m                "core_count": 1,[m
+[32m+[m[32m                "nested_virtualization": "",[m
+[32m+[m[32m                "threads_per_core": 2[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "credit_specification": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "cpu_credits": "unlimited"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "disable_api_stop": false,[m
+[32m+[m[32m            "disable_api_termination": false,[m
+[32m+[m[32m            "ebs_block_device": [],[m
+[32m+[m[32m            "ebs_optimized": false,[m
+[32m+[m[32m            "enable_primary_ipv6": null,[m
+[32m+[m[32m            "enclave_options": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "enabled": false[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "ephemeral_block_device": [],[m
+[32m+[m[32m            "force_destroy": false,[m
+[32m+[m[32m            "get_password_data": false,[m
+[32m+[m[32m            "hibernation": false,[m
+[32m+[m[32m            "host_id": "",[m
+[32m+[m[32m            "host_resource_group_arn": null,[m
+[32m+[m[32m            "iam_instance_profile": "",[m
+[32m+[m[32m            "id": "i-00b42b55d9742d3f2",[m
+[32m+[m[32m            "instance_initiated_shutdown_behavior": "stop",[m
+[32m+[m[32m            "instance_lifecycle": "",[m
+[32m+[m[32m            "instance_market_options": [],[m
+[32m+[m[32m            "instance_state": "running",[m
+[32m+[m[32m            "instance_type": "t3.micro",[m
+[32m+[m[32m            "ipv6_address_count": 0,[m
+[32m+[m[32m            "ipv6_addresses": [],[m
+[32m+[m[32m            "key_name": "devops-learning-key",[m
+[32m+[m[32m            "launch_template": [],[m
+[32m+[m[32m            "maintenance_options": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "auto_recovery": "default"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "metadata_options": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "http_endpoint": "enabled",[m
+[32m+[m[32m                "http_protocol_ipv6": "disabled",[m
+[32m+[m[32m                "http_put_response_hop_limit": 2,[m
+[32m+[m[32m                "http_tokens": "required",[m
+[32m+[m[32m                "instance_metadata_tags": "disabled"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "monitoring": false,[m
+[32m+[m[32m            "network_interface": [],[m
+[32m+[m[32m            "outpost_arn": "",[m
+[32m+[m[32m            "password_data": "",[m
+[32m+[m[32m            "placement_group": "",[m
+[32m+[m[32m            "placement_group_id": "",[m
+[32m+[m[32m            "placement_partition_number": 0,[m
+[32m+[m[32m            "primary_network_interface": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "delete_on_termination": true,[m
+[32m+[m[32m                "network_interface_id": "eni-0cf137d181533ce9d"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "primary_network_interface_id": "eni-0cf137d181533ce9d",[m
+[32m+[m[32m            "private_dns": "ip-10-0-1-200.ec2.internal",[m
+[32m+[m[32m            "private_dns_name_options": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "enable_resource_name_dns_a_record": false,[m
+[32m+[m[32m                "enable_resource_name_dns_aaaa_record": false,[m
+[32m+[m[32m                "hostname_type": "ip-name"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "private_ip": "10.0.1.200",[m
+[32m+[m[32m            "public_dns": "",[m
+[32m+[m[32m            "public_ip": "52.87.178.212",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "root_block_device": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "delete_on_termination": true,[m
+[32m+[m[32m                "device_name": "/dev/sda1",[m
+[32m+[m[32m                "encrypted": false,[m
+[32m+[m[32m                "iops": 3000,[m
+[32m+[m[32m                "kms_key_id": "",[m
+[32m+[m[32m                "tags": {},[m
+[32m+[m[32m                "tags_all": {},[m
+[32m+[m[32m                "throughput": 125,[m
+[32m+[m[32m                "volume_id": "vol-0cf3ff805c14a160b",[m
+[32m+[m[32m                "volume_size": 8,[m
+[32m+[m[32m                "volume_type": "gp3"[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "secondary_network_interface": [],[m
+[32m+[m[32m            "secondary_private_ips": [],[m
+[32m+[m[32m            "security_groups": [],[m
+[32m+[m[32m            "source_dest_check": true,[m
+[32m+[m[32m            "spot_instance_request_id": "",[m
+[32m+[m[32m            "subnet_id": "subnet-072166307c63a6d0f",[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-app-server"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-app-server"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tenancy": "default",[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "user_data": null,[m
+[32m+[m[32m            "user_data_base64": null,[m
+[32m+[m[32m            "user_data_replace_on_change": false,[m
+[32m+[m[32m            "volume_tags": null,[m
+[32m+[m[32m            "vpc_security_group_ids": [[m
+[32m+[m[32m              "sg-01096d23418304535"[m
+[32m+[m[32m            ][m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "i-00b42b55d9742d3f2",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMCwicmVhZCI6OTAwMDAwMDAwMDAwLCJ1cGRhdGUiOjYwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMiJ9",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_security_group.app_sg",[m
+[32m+[m[32m            "aws_subnet.public_subnet",[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_internet_gateway",[m
+[32m+[m[32m      "name": "devops_igw",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 0,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:internet-gateway/igw-0a68bbfe9d0c3f773",[m
+[32m+[m[32m            "id": "igw-0a68bbfe9d0c3f773",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-igw"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-igw"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "vpc_id": "vpc-09b31337614ea77cc"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "igw-0a68bbfe9d0c3f773",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjoxMjAwMDAwMDAwMDAwLCJkZWxldGUiOjEyMDAwMDAwMDAwMDAsInVwZGF0ZSI6MTIwMDAwMDAwMDAwMH19",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_route_table",[m
+[32m+[m[32m      "name": "public_rt",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 0,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:route-table/rtb-090a811fb6355984d",[m
+[32m+[m[32m            "id": "rtb-090a811fb6355984d",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "propagating_vgws": [],[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "route": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "carrier_gateway_id": "",[m
+[32m+[m[32m                "cidr_block": "0.0.0.0/0",[m
+[32m+[m[32m                "core_network_arn": "",[m
+[32m+[m[32m                "destination_prefix_list_id": "",[m
+[32m+[m[32m                "egress_only_gateway_id": "",[m
+[32m+[m[32m                "gateway_id": "igw-0a68bbfe9d0c3f773",[m
+[32m+[m[32m                "ipv6_cidr_block": "",[m
+[32m+[m[32m                "local_gateway_id": "",[m
+[32m+[m[32m                "nat_gateway_id": "",[m
+[32m+[m[32m                "network_interface_id": "",[m
+[32m+[m[32m                "odb_network_arn": "",[m
+[32m+[m[32m                "transit_gateway_id": "",[m
+[32m+[m[32m                "vpc_endpoint_id": "",[m
+[32m+[m[32m                "vpc_peering_connection_id": ""[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-public-rt"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-public-rt"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "vpc_id": "vpc-09b31337614ea77cc"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "rtb-090a811fb6355984d",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDAsImRlbGV0ZSI6MzAwMDAwMDAwMDAwLCJ1cGRhdGUiOjEyMDAwMDAwMDAwMH19",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_internet_gateway.devops_igw",[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_route_table_association",[m
+[32m+[m[32m      "name": "public_subnet_association",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 0,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "gateway_id": "",[m
+[32m+[m[32m            "id": "rtbassoc-0c0fee6ae788bb340",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "route_table_id": "rtb-090a811fb6355984d",[m
+[32m+[m[32m            "subnet_id": "subnet-072166307c63a6d0f",[m
+[32m+[m[32m            "timeouts": null[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "rtbassoc-0c0fee6ae788bb340",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjozMDAwMDAwMDAwMDAsImRlbGV0ZSI6MzAwMDAwMDAwMDAwLCJ1cGRhdGUiOjEyMDAwMDAwMDAwMH19",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_internet_gateway.devops_igw",[m
+[32m+[m[32m            "aws_route_table.public_rt",[m
+[32m+[m[32m            "aws_subnet.public_subnet",[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_security_group",[m
+[32m+[m[32m      "name": "app_sg",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 1,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:security-group/sg-01096d23418304535",[m
+[32m+[m[32m            "description": "Security group for DevOps practice application",[m
+[32m+[m[32m            "egress": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "cidr_blocks": [[m
+[32m+[m[32m                  "0.0.0.0/0"[m
+[32m+[m[32m                ],[m
+[32m+[m[32m                "description": "",[m
+[32m+[m[32m                "from_port": 0,[m
+[32m+[m[32m                "ipv6_cidr_blocks": [],[m
+[32m+[m[32m                "prefix_list_ids": [],[m
+[32m+[m[32m                "protocol": "-1",[m
+[32m+[m[32m                "security_groups": [],[m
+[32m+[m[32m                "self": false,[m
+[32m+[m[32m                "to_port": 0[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "id": "sg-01096d23418304535",[m
+[32m+[m[32m            "ingress": [[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "cidr_blocks": [[m
+[32m+[m[32m                  "0.0.0.0/0"[m
+[32m+[m[32m                ],[m
+[32m+[m[32m                "description": "HTTP",[m
+[32m+[m[32m                "from_port": 80,[m
+[32m+[m[32m                "ipv6_cidr_blocks": [],[m
+[32m+[m[32m                "prefix_list_ids": [],[m
+[32m+[m[32m                "protocol": "tcp",[m
+[32m+[m[32m                "security_groups": [],[m
+[32m+[m[32m                "self": false,[m
+[32m+[m[32m                "to_port": 80[m
+[32m+[m[32m              },[m
+[32m+[m[32m              {[m
+[32m+[m[32m                "cidr_blocks": [[m
+[32m+[m[32m                  "0.0.0.0/0"[m
+[32m+[m[32m                ],[m
+[32m+[m[32m                "description": "SSH",[m
+[32m+[m[32m                "from_port": 22,[m
+[32m+[m[32m                "ipv6_cidr_blocks": [],[m
+[32m+[m[32m                "prefix_list_ids": [],[m
+[32m+[m[32m                "protocol": "tcp",[m
+[32m+[m[32m                "security_groups": [],[m
+[32m+[m[32m                "self": false,[m
+[32m+[m[32m                "to_port": 22[m
+[32m+[m[32m              }[m
+[32m+[m[32m            ],[m
+[32m+[m[32m            "name": "devops-practice-app-sg",[m
+[32m+[m[32m            "name_prefix": "",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "revoke_rules_on_delete": false,[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-app-sg"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-app-sg"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "vpc_id": "vpc-09b31337614ea77cc"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "sg-01096d23418304535",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6OTAwMDAwMDAwMDAwfSwic2NoZW1hX3ZlcnNpb24iOiIxIn0=",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_subnet",[m
+[32m+[m[32m      "name": "private_subnet",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 1,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:subnet/subnet-03707165c68acd171",[m
+[32m+[m[32m            "assign_ipv6_address_on_creation": false,[m
+[32m+[m[32m            "availability_zone": "us-east-1a",[m
+[32m+[m[32m            "availability_zone_id": "use1-az2",[m
+[32m+[m[32m            "cidr_block": "10.0.2.0/24",[m
+[32m+[m[32m            "customer_owned_ipv4_pool": "",[m
+[32m+[m[32m            "enable_dns64": false,[m
+[32m+[m[32m            "enable_lni_at_device_index": 0,[m
+[32m+[m[32m            "enable_resource_name_dns_a_record_on_launch": false,[m
+[32m+[m[32m            "enable_resource_name_dns_aaaa_record_on_launch": false,[m
+[32m+[m[32m            "id": "subnet-03707165c68acd171",[m
+[32m+[m[32m            "ipv4_ipam_pool_id": null,[m
+[32m+[m[32m            "ipv4_netmask_length": null,[m
+[32m+[m[32m            "ipv6_cidr_block": "",[m
+[32m+[m[32m            "ipv6_cidr_block_association_id": "",[m
+[32m+[m[32m            "ipv6_ipam_pool_id": null,[m
+[32m+[m[32m            "ipv6_native": false,[m
+[32m+[m[32m            "ipv6_netmask_length": null,[m
+[32m+[m[32m            "map_customer_owned_ip_on_launch": false,[m
+[32m+[m[32m            "map_public_ip_on_launch": false,[m
+[32m+[m[32m            "outpost_arn": "",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "private_dns_hostname_type_on_launch": "ip-name",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-private-subnet"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-private-subnet"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "vpc_id": "vpc-09b31337614ea77cc"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "subnet-03707165c68acd171",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMSJ9",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_subnet",[m
+[32m+[m[32m      "name": "public_subnet",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 1,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:subnet/subnet-072166307c63a6d0f",[m
+[32m+[m[32m            "assign_ipv6_address_on_creation": false,[m
+[32m+[m[32m            "availability_zone": "us-east-1a",[m
+[32m+[m[32m            "availability_zone_id": "use1-az2",[m
+[32m+[m[32m            "cidr_block": "10.0.1.0/24",[m
+[32m+[m[32m            "customer_owned_ipv4_pool": "",[m
+[32m+[m[32m            "enable_dns64": false,[m
+[32m+[m[32m            "enable_lni_at_device_index": 0,[m
+[32m+[m[32m            "enable_resource_name_dns_a_record_on_launch": false,[m
+[32m+[m[32m            "enable_resource_name_dns_aaaa_record_on_launch": false,[m
+[32m+[m[32m            "id": "subnet-072166307c63a6d0f",[m
+[32m+[m[32m            "ipv4_ipam_pool_id": null,[m
+[32m+[m[32m            "ipv4_netmask_length": null,[m
+[32m+[m[32m            "ipv6_cidr_block": "",[m
+[32m+[m[32m            "ipv6_cidr_block_association_id": "",[m
+[32m+[m[32m            "ipv6_ipam_pool_id": null,[m
+[32m+[m[32m            "ipv6_native": false,[m
+[32m+[m[32m            "ipv6_netmask_length": null,[m
+[32m+[m[32m            "map_customer_owned_ip_on_launch": false,[m
+[32m+[m[32m            "map_public_ip_on_launch": true,[m
+[32m+[m[32m            "outpost_arn": "",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "private_dns_hostname_type_on_launch": "ip-name",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-public-subnet"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-public-subnet"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "timeouts": null,[m
+[32m+[m[32m            "vpc_id": "vpc-09b31337614ea77cc"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "subnet-072166307c63a6d0f",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJlMmJmYjczMC1lY2FhLTExZTYtOGY4OC0zNDM2M2JjN2M0YzAiOnsiY3JlYXRlIjo2MDAwMDAwMDAwMDAsImRlbGV0ZSI6MTIwMDAwMDAwMDAwMH0sInNjaGVtYV92ZXJzaW9uIjoiMSJ9",[m
+[32m+[m[32m          "dependencies": [[m
+[32m+[m[32m            "aws_vpc.devops_vpc"[m
+[32m+[m[32m          ][m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    },[m
+[32m+[m[32m    {[m
+[32m+[m[32m      "mode": "managed",[m
+[32m+[m[32m      "type": "aws_vpc",[m
+[32m+[m[32m      "name": "devops_vpc",[m
+[32m+[m[32m      "provider": "provider[\"registry.terraform.io/hashicorp/aws\"]",[m
+[32m+[m[32m      "instances": [[m
+[32m+[m[32m        {[m
+[32m+[m[32m          "schema_version": 1,[m
+[32m+[m[32m          "attributes": {[m
+[32m+[m[32m            "arn": "arn:aws:ec2:us-east-1:717279727632:vpc/vpc-09b31337614ea77cc",[m
+[32m+[m[32m            "assign_generated_ipv6_cidr_block": false,[m
+[32m+[m[32m            "cidr_block": "10.0.0.0/16",[m
+[32m+[m[32m            "default_network_acl_id": "acl-090dc907acba26575",[m
+[32m+[m[32m            "default_route_table_id": "rtb-0027380a8d016df1f",[m
+[32m+[m[32m            "default_security_group_id": "sg-0d32dbe323e085939",[m
+[32m+[m[32m            "dhcp_options_id": "dopt-0bed5c5effb705087",[m
+[32m+[m[32m            "enable_dns_hostnames": false,[m
+[32m+[m[32m            "enable_dns_support": true,[m
+[32m+[m[32m            "enable_network_address_usage_metrics": false,[m
+[32m+[m[32m            "id": "vpc-09b31337614ea77cc",[m
+[32m+[m[32m            "instance_tenancy": "default",[m
+[32m+[m[32m            "ipv4_ipam_pool_id": null,[m
+[32m+[m[32m            "ipv4_netmask_length": null,[m
+[32m+[m[32m            "ipv6_association_id": "",[m
+[32m+[m[32m            "ipv6_cidr_block": "",[m
+[32m+[m[32m            "ipv6_cidr_block_network_border_group": "",[m
+[32m+[m[32m            "ipv6_ipam_pool_id": "",[m
+[32m+[m[32m            "ipv6_netmask_length": 0,[m
+[32m+[m[32m            "main_route_table_id": "rtb-0027380a8d016df1f",[m
+[32m+[m[32m            "owner_id": "717279727632",[m
+[32m+[m[32m            "region": "us-east-1",[m
+[32m+[m[32m            "tags": {[m
+[32m+[m[32m              "Name": "devops-practice-vpc"[m
+[32m+[m[32m            },[m
+[32m+[m[32m            "tags_all": {[m
+[32m+[m[32m              "Name": "devops-practice-vpc"[m
+[32m+[m[32m            }[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "sensitive_attributes": [],[m
+[32m+[m[32m          "identity_schema_version": 0,[m
+[32m+[m[32m          "identity": {[m
+[32m+[m[32m            "account_id": "717279727632",[m
+[32m+[m[32m            "id": "vpc-09b31337614ea77cc",[m
+[32m+[m[32m            "region": "us-east-1"[m
+[32m+[m[32m          },[m
+[32m+[m[32m          "private": "eyJzY2hlbWFfdmVyc2lvbiI6IjEifQ=="[m
+[32m+[m[32m        }[m
+[32m+[m[32m      ][m
+[32m+[m[32m    }[m
+[32m+[m[32m  ],[m
+[32m+[m[32m  "check_results": null[m
+[32m+[m[32m}[m
